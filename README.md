@@ -6,6 +6,8 @@ Mình tạo repo này để public thử một baseline Spring Boot khởi độ
 
 Cả hai baseline (JVM và GraalVM native, sau này) đều sẽ được host **free** trên [Render](https://render.com) bằng gói Free plan. Mục đích cuối cùng không phải để chạy production gì cả, mà để đo và so sánh: **thời gian cold start sau khi service bị Render cho ngủ vì inactive** — bên JVM khởi động lại chậm cỡ nào so với bên GraalVM native. Đây là câu hỏi thực tế mình tò mò từ lâu, giờ dựng hẳn 2 baseline để tự trả lời bằng số liệu thay vì đoán.
 
+Kết quả đo cold start (local, đối chiếu trực tiếp với repo GraalVM) và kết luận: [docs/benchmark.md](docs/benchmark.md)
+
 ## Pipeline CI/CD
 
 Repo có sẵn 1 pipeline đơn giản chạy trên GitHub Actions: mỗi Pull Request sẽ tự chạy **lint** (kiểm tra format bằng Spotless, phân tích tĩnh bằng SpotBugs) và **test** (unit test). Khi merge vào `master` thì build và push Docker image lên GHCR; khi mình tạo tag release thì pipeline tự gọi Render để deploy bản mới.
