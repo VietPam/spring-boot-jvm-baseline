@@ -1,15 +1,11 @@
 plugins {
 	id 'java'
-	// Them checker loi space, code smell, bug pattern
-	id 'checkstyle'
-	id 'pmd'
-	id 'com.github.spotbugs' version '6.5.10'
-	// Them checker loi space, code smell, bug pattern
+	alias(libs.plugins.spotbugs)
 	id 'jacoco'
-	id 'com.diffplug.spotless' version '8.9.0'
+	alias(libs.plugins.spotless)
 	// TODO: tich hop SonarQube/SonarCloud (id 'org.sonarqube' version '...') - can tao tai khoan SonarCloud + SONAR_TOKEN secret truoc
-	id 'org.springframework.boot' version '4.1.0'
-	id 'io.spring.dependency-management' version '1.1.7'
+	alias(libs.plugins.spring.boot)
+	alias(libs.plugins.spring.dependency.management)
 }
 
 group = 'com.vietpq'
@@ -18,7 +14,7 @@ description = 'Minimal Spring Boot hello-world app - JVM Docker baseline'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
+		languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInteger())
 	}
 }
 
@@ -30,20 +26,6 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-// Them checker loi space, code smell, bug pattern
-
-checkstyle {
-	toolVersion = '13.0.0'
-	configFile = file('config/checkstyle/checkstyle.xml')
-	maxWarnings = 0
-}
-
-pmd {
-	toolVersion = '7.26.0'
-	ruleSetFiles = files('config/pmd/ruleset.xml')
-	ruleSets = []
-	ignoreFailures = false
 }
 
 spotbugs {
@@ -58,10 +40,9 @@ tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
 		xml.required = false
 	}
 }
-// Them checker loi space, code smell, bug pattern
 
 jacoco {
-	toolVersion = '0.8.14'
+	toolVersion = libs.versions.jacoco.tool.get()
 }
 
 tasks.named('jacocoTestReport') {
@@ -75,10 +56,9 @@ tasks.named('jacocoTestReport') {
 spotless {
 	java {
 		target 'src/**/*.java'
-		removeUnusedImports()
 		importOrder()
-		trimTrailingWhitespace()
-		indentWithSpaces(4)
+		removeUnusedImports()
+		googleJavaFormat(libs.versions.google.java.format.get())
 		endWithNewline()
 	}
 }

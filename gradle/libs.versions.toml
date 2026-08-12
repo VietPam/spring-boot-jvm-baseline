@@ -1,0 +1,14 @@
+[versions]
+java = "25"
+spring-boot = "4.1.0"
+spring-dependency-management = "1.1.7"
+spotbugs-gradle = "6.5.10"
+spotless-gradle = "8.9.0"
+jacoco-tool = "0.8.14"
+google-java-format = "1.27.0"
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-gradle" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless-gradle" }

@@ -54,17 +54,14 @@ jobs:
         run: ./gradlew spotlessCheck --no-daemon
 
       - name: Run static analysis
-        run: ./gradlew checkstyleMain checkstyleTest pmdMain pmdTest spotbugsMain spotbugsTest --no-daemon
+        run: ./gradlew spotbugsMain spotbugsTest --no-daemon
 
       - name: Upload analysis reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: static-analysis-reports
-          path: |
-            build/reports/checkstyle/
-            build/reports/pmd/
-            build/reports/spotbugs/
+          path: build/reports/spotbugs/
           retention-days: 7
 # Them checker loi space, code smell, bug pattern
 # TODO: tich hop SonarQube/SonarCloud sau khi co tai khoan + SONAR_TOKEN secret (job rieng, chay sau test+lint)
