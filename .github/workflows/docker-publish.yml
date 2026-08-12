@@ -52,6 +52,19 @@ jobs:
         id: commit
         run: echo "message=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
 
+      - name: Compose labels
+        id: labels
+        env:
+          META_LABELS: ${{ steps.meta.outputs.labels }}
+          DESCRIPTION: ${{ steps.commit.outputs.message }}
+        run: |
+          {
+            echo "value<<LABELS_EOF"
+            echo "$META_LABELS" | grep -v '^org.opencontainers.image.description='
+            echo "org.opencontainers.image.description=$DESCRIPTION"
+            echo "LABELS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -59,8 +72,6 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            ${{ steps.meta.outputs.labels }}
-            org.opencontainers.image.description=${{ steps.commit.outputs.message }}
+          labels: ${{ steps.labels.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
