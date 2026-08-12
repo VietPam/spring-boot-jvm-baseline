@@ -5,6 +5,9 @@ plugins {
 	id 'pmd'
 	id 'com.github.spotbugs' version '6.5.10'
 	// Them checker loi space, code smell, bug pattern
+	id 'jacoco'
+	id 'com.diffplug.spotless' version '8.9.0'
+	// TODO: tich hop SonarQube/SonarCloud (id 'org.sonarqube' version '...') - can tao tai khoan SonarCloud + SONAR_TOKEN secret truoc
 	id 'org.springframework.boot' version '4.1.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -57,8 +60,32 @@ tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
 }
 // Them checker loi space, code smell, bug pattern
 
+jacoco {
+	toolVersion = '0.8.14'
+}
+
+tasks.named('jacocoTestReport') {
+	dependsOn tasks.named('test')
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+spotless {
+	java {
+		target 'src/**/*.java'
+		removeUnusedImports()
+		importOrder()
+		trimTrailingWhitespace()
+		indentWithSpaces(4)
+		endWithNewline()
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy tasks.named('jacocoTestReport')
 	testLogging {
 		events "passed", "skipped", "failed"
 		exceptionFormat "full"

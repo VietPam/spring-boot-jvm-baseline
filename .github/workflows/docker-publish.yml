@@ -28,6 +28,14 @@ jobs:
 
       - name: Run tests
         run: ./gradlew test --no-daemon
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test/
+          retention-days: 7
 # Them checker loi space, code smell, bug pattern
   lint:
     runs-on: ubuntu-latest
@@ -41,6 +49,9 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: gradle
+
+      - name: Check formatting
+        run: ./gradlew spotlessCheck --no-daemon
 
       - name: Run static analysis
         run: ./gradlew checkstyleMain checkstyleTest pmdMain pmdTest spotbugsMain spotbugsTest --no-daemon
@@ -56,6 +67,7 @@ jobs:
             build/reports/spotbugs/
           retention-days: 7
 # Them checker loi space, code smell, bug pattern
+# TODO: tich hop SonarQube/SonarCloud sau khi co tai khoan + SONAR_TOKEN secret (job rieng, chay sau test+lint)
 
   build-and-push:
     needs: [ test, lint ]
