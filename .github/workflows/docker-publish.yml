@@ -1,12 +1,17 @@
 name: Build and Publish Docker Image
 
+# Xem giải thích chi tiết toàn bộ pipeline này tại docs/pipeline.md
+
 on:
   push:
-    branches: [ "master", "ci/setup-github-actions" ]  # dòng thêm tạm để test
+    branches: [ "master"]
+    # Trigger khi push git tag dạng vX.Y.Z (release chính thức) -> chạy đủ test, lint,
+    # build-and-push (thêm tag version thật) và deploy.
     tags: [ "v*.*.*" ]
   pull_request:
-  # Cau hinh only run build-and-push khi tao pull request on master branch
+    # Chỉ chạy test + lint để gate PR, không build/push image (xem điều kiện if ở job build-and-push).
     branches: [ "master" ]
+  # Cho phép bấm chạy tay từ tab Actions khi cần (debug, chạy lại thủ công).
   workflow_dispatch: {}
 
 env:
@@ -16,6 +21,7 @@ permissions:
   contents: read
 
 jobs:
+  # Job 1: chạy unit test + xuất coverage report (Jacoco). Bắt buộc phải pass trước khi build/deploy.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -39,7 +45,9 @@ jobs:
           name: jacoco-report
           path: build/reports/jacoco/test/
           retention-days: 7
-# Them checker loi space, code smell, bug pattern
+
+  # Job 2: kiểm tra format code (Spotless) + phân tích tĩnh tìm bug pattern (SpotBugs).
+  # Chạy song song với job test, không phụ thuộc nhau.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -66,12 +74,12 @@ jobs:
           name: static-analysis-reports
           path: build/reports/spotbugs/
           retention-days: 7
-# Them checker loi space, code smell, bug pattern
-# TODO: tich hop SonarQube/SonarCloud sau khi co tai khoan + SONAR_TOKEN secret (job rieng, chay sau test+lint)
+  # TODO: tich hop SonarQube/SonarCloud sau khi co tai khoan + SONAR_TOKEN secret (job rieng, chay sau test+lint)
 
+  # Job 3: build Docker image và push lên GHCR. Chỉ chạy khi test + lint đã pass.
+  # Không chạy trên pull_request (image chỉ build/push thật khi code đã vào master hoặc khi tạo tag release).
   build-and-push:
     needs: [ test, lint ]
-    # Cau hinh only run build-and-push khi tao pull request on master branch
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -81,6 +89,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # GHCR yêu cầu tên image toàn bộ chữ thường, trong khi GITHUB_REPOSITORY có thể có chữ hoa.
       - name: Compute lowercase image name
         id: image
         run: echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
@@ -95,10 +104,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Lấy message của commit hiện tại để đưa vào label mô tả image, dễ trace image này build từ commit nào.
       - name: Get commit message
         id: commit
         run: echo "message=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
 
+      # Tự động tính toán các tag sẽ gắn lên image, tuỳ theo loại trigger:
+      #   - type=ref,event=branch       -> tag theo tên nhánh (vd "master") khi push nhánh
+      #   - type=semver,{{version}}     -> tag "X.Y.Z", chỉ có giá trị khi trigger là 1 git tag "vX.Y.Z"
+      #   - type=semver,{{major}}.{{minor}} -> tag "X.Y" tương ứng
+      #   - type=sha                    -> tag theo short commit sha, luôn có để trace ngược lại đúng commit
+      #   - type=raw,value=latest       -> CHỈ gắn "latest" khi trigger là git tag release (vX.Y.Z),
+      #                                    KHÔNG gắn theo mỗi lần merge master, để "latest" luôn = bản release
+      #                                    mới nhất (đúng bản Render sẽ pull về ở job deploy).
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -109,7 +127,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
           labels: |
             org.opencontainers.image.description=${{ steps.commit.outputs.message }}
 
@@ -123,3 +141,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Job 4: báo cho Render biết có bản release mới để tự pull image ":latest" và deploy.
+  # Chỉ chạy khi trigger là git tag "vX.Y.Z" (tạo release) -> KHÔNG tự deploy mỗi lần merge master,
+  # tránh đưa code chưa release chính thức lên production.
+  # "environment: production" để GitHub ghi nhận đây là 1 lần Deployment thật (xem tab Environments/Deployments).
+  deploy:
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # Deploy Hook là URL bí mật do Render cấp (Settings -> Deploy Hook trên Render),
+      # lưu ở GitHub Secret "RENDER_DEPLOY_HOOK_URL" (Settings > Secrets and variables > Actions).
+      # Gọi POST vào URL này = báo hiệu Render pull lại image ":latest" mới nhất và khởi động lại.
+      - name: Trigger Render deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
