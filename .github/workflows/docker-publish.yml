@@ -1,0 +1,125 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches: [ "master", "ci/setup-github-actions" ]  # dòng thêm tạm để test
+    tags: [ "v*.*.*" ]
+  pull_request:
+  # Cau hinh only run build-and-push khi tao pull request on master branch
+    branches: [ "master" ]
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test/
+          retention-days: 7
+# Them checker loi space, code smell, bug pattern
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Check formatting
+        run: ./gradlew spotlessCheck --no-daemon
+
+      - name: Run static analysis
+        run: ./gradlew spotbugsMain spotbugsTest --no-daemon
+
+      - name: Upload analysis reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-reports
+          path: build/reports/spotbugs/
+          retention-days: 7
+# Them checker loi space, code smell, bug pattern
+# TODO: tich hop SonarQube/SonarCloud sau khi co tai khoan + SONAR_TOKEN secret (job rieng, chay sau test+lint)
+
+  build-and-push:
+    needs: [ test, lint ]
+    # Cau hinh only run build-and-push khi tao pull request on master branch
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute lowercase image name
+        id: image
+        run: echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get commit message
+        id: commit
+        run: echo "message=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.description=${{ steps.commit.outputs.message }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

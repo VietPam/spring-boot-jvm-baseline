@@ -12,7 +12,7 @@ Hướng dẫn các lệnh Docker cơ bản để build và chạy ứng dụng 
 
 ### Verify: Docker Engine đang chạy ổn định trên Linux
 
-Lệnh:
+Lệnh: 
 
 ```bash
 systemctl status docker

@@ -1,7 +1,11 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.1.0'
-	id 'io.spring.dependency-management' version '1.1.7'
+	alias(libs.plugins.spotbugs)
+	id 'jacoco'
+	alias(libs.plugins.spotless)
+	// TODO: tich hop SonarQube/SonarCloud (id 'org.sonarqube' version '...') - can tao tai khoan SonarCloud + SONAR_TOKEN secret truoc
+	alias(libs.plugins.spring.boot)
+	alias(libs.plugins.spring.dependency.management)
 }
 
 group = 'com.vietpq'
@@ -10,7 +14,7 @@ description = 'Minimal Spring Boot hello-world app - JVM Docker baseline'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
+		languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInteger())
 	}
 }
 
@@ -24,6 +28,52 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+spotbugs {
+	effort = 'max'
+	reportLevel = 'medium'
+	ignoreFailures = false
+}
+
+tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
+	reports {
+		html.required = true
+		xml.required = false
+	}
+}
+
+jacoco {
+	toolVersion = libs.versions.jacoco.tool.get()
+}
+
+tasks.named('jacocoTestReport') {
+	dependsOn tasks.named('test')
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+spotless {
+	java {
+		target 'src/**/*.java'
+		importOrder()
+		removeUnusedImports()
+		googleJavaFormat(libs.versions.google.java.format.get())
+		endWithNewline()
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy tasks.named('jacocoTestReport')
+	testLogging {
+		events "passed", "skipped", "failed"
+		exceptionFormat "full"
+		showStandardStreams = true
+	}
+	afterSuite { desc, result ->
+		if (!desc.parent) {
+			println "\nTest summary: ${result.testCount} tests, ${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped"
+		}
+	}
 }
