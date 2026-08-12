@@ -4,6 +4,9 @@ on:
   push:
     branches: [ "master", "ci/setup-github-actions" ]  # dòng thêm tạm để test
     tags: [ "v*.*.*" ]
+  pull_request:
+  # Cau hinh only run build-and-push khi tao pull request on master branch
+    branches: [ "master" ]
   workflow_dispatch: {}
 
 env:
@@ -68,6 +71,8 @@ jobs:
 
   build-and-push:
     needs: [ test, lint ]
+    # Cau hinh only run build-and-push khi tao pull request on master branch
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
